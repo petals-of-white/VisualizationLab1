@@ -62,13 +62,13 @@ executable Lab1imgui
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: GUI, Image
+    other-modules: Plot, GUI
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.18.1.0, managed, text, OpenGL, GLFW-b, dear-imgui
+    build-depends:    base ^>=4.18.1.0, managed, bytestring, text, OpenGLRaw, OpenGL, linear, GLFW-b, dear-imgui
 
     -- Directories containing source files.
     hs-source-dirs:   app

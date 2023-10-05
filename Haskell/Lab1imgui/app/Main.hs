@@ -45,6 +45,7 @@ main = do
       Just win -> do
         liftIO $ do
           GLFW.makeContextCurrent (Just win)
+
           GLFW.swapInterval 1
 
         -- Create an ImGui context
@@ -56,7 +57,8 @@ main = do
 
         -- Initialize ImGui's OpenGL backend
         _ <- managed_ $ bracket_ ImguiGL.openGL3Init ImguiGL.openGL3Shutdown
-
+        
+        -- let a = unsafeFromByteString
         df <- addFontDefault
 
         f <- addFontFromFileTTF_ "C:\\Windows\\Fonts\\arial.ttf" 25
