@@ -68,7 +68,7 @@ executable Lab1imgui
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.18.1.0, managed, bytestring, text, OpenGLRaw, OpenGL, linear, GLFW-b, dear-imgui
+    build-depends:    base ^>=4.18.1.0, managed, bytestring, text, OpenGLRaw, OpenGL, lens, linear, GLFW-b, dear-imgui
 
     -- Directories containing source files.
     hs-source-dirs:   app

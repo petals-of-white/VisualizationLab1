@@ -3,6 +3,8 @@ module Plot where
 import Data.Tuple (swap)
 import Numeric.Natural (Natural)
 import qualified Linear as L
+import Control.Lens
+
 data Point a = Point {x :: a, y :: a}
 
 type Plot a = [Point a]
@@ -36,5 +38,6 @@ plotGrid size =
    in concat $ horizontal ++ vertical
 
   
-transformMatrix :: Floating a => L.V3 a -> a -> L.V3 a -> Bool -> L.M44 a
--- transformMatrix translateVec rotateDeg rotateVec shouldMirror =
+-- transformMatrix :: Floating a => L.V3 a -> a -> L.V3 a -> Bool -> L.M44 a
+transformMatrix translateVec rotateDeg rotateVec shouldMirror =
+  L.rotate $ set L.translation L.identity translateVec
