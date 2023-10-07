@@ -2,7 +2,7 @@ module Plot where
 
 import Data.Tuple (swap)
 import Numeric.Natural (Natural)
-import qualified Linear as L
+import Linear as L ((!*!), scaled, rotate, translation, identity, Quaternion (Quaternion))
 import Control.Lens
 
 data Point a = Point {x :: a, y :: a}
@@ -38,6 +38,11 @@ plotGrid size =
    in concat $ horizontal ++ vertical
 
   
--- transformMatrix :: Floating a => L.V3 a -> a -> L.V3 a -> Bool -> L.M44 a
-transformMatrix translateVec rotateDeg rotateVec shouldMirror =
-  L.rotate $ set L.translation L.identity translateVec
+-- transformMatrix ::  Floating a => L.V3 a -> a -> L.V3 a -> Bool -> L.M44 a
+transformMatrix scaleVec translateVec rotateDeg rotateVec =
+  -- L.scaled scaleVec
+  let scaleM = scaled scaleVec
+      translationM = set translation identity translateVec
+      rotationM = rotate (Quaternion rotateDeg rotateVec) 
+  in undefined
+  -- L.rotate $ set L.translation L.identity translateVec
