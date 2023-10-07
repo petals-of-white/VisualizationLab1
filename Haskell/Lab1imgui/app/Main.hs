@@ -30,9 +30,7 @@ import qualified Graphics.UI.GLFW as GLFW
 
 main :: IO ()
 main = do
-  -- GLFW.setErrorCallback
   glfwInitialized <- GLFW.init
-  -- gl3Initialized <- openGL3Init
   unless glfwInitialized $ error "GLFW init failed"
 
   runManaged $ do
