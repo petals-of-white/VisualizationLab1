@@ -9,7 +9,6 @@ uniform float offset_x;
 uniform float scale_x;
 void main()
 {
-//	gl_Position = u_transform * vec4((aPos.x + offset_x) * scale_x, aPos.y, 0.0f, 1.0f);
 	gl_Position = vec4((aPos.x + offset_x) * scale_x, aPos.y, 0.0f, 1.0f);
 	color = vec4(aPos.xy / 2.0 + 0.5, 1,1);
 }

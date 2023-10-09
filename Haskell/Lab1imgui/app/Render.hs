@@ -6,6 +6,15 @@ import Linear as Lin
 import Numeric.Natural (Natural)
 import Plot (plotGrid, plotPascalSnail)
 
+
+prepareShader :: ShaderType -> FilePath -> IO Shader
+prepareShader shType path = do
+  shaderText <- readFile path
+  shader <- createShader shType
+  shaderSourceBS shader $= packUtf8 shaderText
+  compileShader shader
+  return shader
+
 prepareProgram :: FilePath -> FilePath -> IO Program
 prepareProgram vertPath fragPath = do
   vertShader <- prepareShader VertexShader vertPath
@@ -16,14 +25,6 @@ prepareProgram vertPath fragPath = do
   linkProgram programID
   releaseShaderCompiler
   return programID
-
-prepareShader :: ShaderType -> FilePath -> IO Shader
-prepareShader shType path = do
-  shaderText <- readFile path
-  shader <- createShader shType
-  shaderSourceBS shader $= packUtf8 shaderText
-  compileShader shader
-  return shader
 
 linkAttrib :: BufferObject -> AttribLocation -> IntegerHandling -> VertexArrayDescriptor a -> IO ()
 linkAttrib vbo location intHandling vaDescriptor = do
@@ -57,6 +58,7 @@ drawPlot plotSize a l transMatrix = do
   GL.drawBuffer $= FBOColorAttachment 0
   viewport $= (Position 0 0, Size 1024 768) 
   GL.clear [ColorBuffer]
-  undefined
+  transMatLoc <- get $ uniformLocation 
+  uniform
   where
     (snail, grid) = (plotPascalSnail a l plotSize, plotGrid 10)

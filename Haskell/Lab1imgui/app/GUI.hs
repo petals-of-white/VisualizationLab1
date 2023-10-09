@@ -3,21 +3,18 @@
 
 module GUI where
 
-import Control.Exception (assert, bracket, bracket_, try)
-import Control.Monad (replicateM, unless, when)
-import Control.Monad.Managed
--- import Data.Foldable (for_)
-
+import Control.Exception (bracket, bracket_)
+import Control.Monad (replicateM, unless, void, when)
+import Control.Monad.Managed hiding (with)
 import Data.IORef
-import Data.List (nub)
 import Data.Text (Text)
-import DearImGui as Imgui hiding (ImVec3 (..), ImVec4 (..))
+import DearImGui as Imgui hiding (ImVec3 (..), ImVec4 (x, y))
 import DearImGui.FontAtlas as Atlas
 import DearImGui.GLFW as ImguiGLFW
 import DearImGui.GLFW.OpenGL as ImguiGLFWGL
 import qualified DearImGui.OpenGL3 as ImguiGL
-import Foreign (malloc)
-import GHC.IO.Exception (assertError)
+import Foreign (WordPtr (WordPtr), castPtr, wordPtrToPtr)
+import Foreign.Marshal (with)
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 
@@ -61,7 +58,14 @@ data SnailSettings = SnailSettings {a :: IORef Text, l :: IORef Text} deriving (
 
 data Vector3S = Vector3S (IORef Text) (IORef Text) (IORef Text) deriving (Eq)
 
-data AppState = AppState {snail :: SnailSettings, scaleV :: Vector3S, translateV :: Vector3S, rotateV :: Vector3S, rotDeg :: IORef Text} deriving (Eq)
+data AppState = AppState
+  { snail :: SnailSettings,
+    scaleV :: Vector3S,
+    translateV :: Vector3S,
+    rotateV :: Vector3S,
+    rotDeg :: IORef Text
+  }
+  deriving (Eq)
 
 valueInput :: (MonadIO m) => Text -> IORef Text -> m Bool
 valueInput label ref = inputText label ref 6
@@ -79,8 +83,18 @@ defaultState = do
         rotDeg = rotD
       }
 
-mainLoop :: Window -> Font -> AppState -> IO ()
-mainLoop win font appState = do
+data GLObjects = GLObjects
+  { gridVAO :: VertexArrayObject,
+    gridVBO :: BufferObject,
+    gridShader :: Program,
+    graphVAO :: VertexArrayObject,
+    graphVBO :: BufferObject,
+    graphShader :: Program,
+    targetTexture :: TextureObject
+  }
+
+mainLoop :: Window -> Font -> AppState -> GLObjects -> IO ()
+mainLoop win font appState glObjects = do
   -- Process the event loop
   GLFW.pollEvents
   close <- GLFW.windowShouldClose win
@@ -91,6 +105,7 @@ mainLoop win font appState = do
     Imgui.newFrame
 
     setNextWindowSize (return $ ImVec2 {x = 600, y = 600} :: IO ImVec2) ImGuiCond_Once
+
     -- Build the GUI
     let body = withWindowOpen "Close your eyees" do
           -- Add a text widget
@@ -117,7 +132,22 @@ mainLoop win font appState = do
           _ <- valueInput "rz" rz
           _ <- valueInput "Deg" (rotDeg appState)
 
-          -- when inputing $ putStrLn "inputing!"
+          let (TextureObject texId) = targetTexture glObjects
+              texPtr = castPtr $ wordPtrToPtr $ WordPtr $ fromIntegral texId
+              siz = ImVec2 1024 768
+              uv0 = ImVec2 0 0
+              uv1 = ImVec2 1 1
+              tint = ImVec4 1 1 1 1
+              bg = tint
+
+          -- [sz, uv0,uv1]
+          with siz \szPtr ->
+            with uv0 \uv0Ptr ->
+              with uv1 \uv1Ptr ->
+                with tint \tintPtr ->
+                  with bg \bgPtr ->
+                    image texPtr szPtr uv0Ptr uv1Ptr tintPtr bgPtr
+          -- image texPtr
           -- Add a button widget, and call 'putStrLn' when it's clicked
           clicking <- button "Clickety Click"
 
@@ -129,19 +159,19 @@ mainLoop win font appState = do
             button "ok" >>= \clicked ->
               when clicked $
                 closeCurrentPopup
-
           newLine
 
     -- Render
     GL.clear [GL.ColorBuffer]
 
-    withFont font body
-    showDemoWindow
-    showAboutWindow
-    showUserGuide
-    showMetricsWindow
+    withFont font do
+      body
+      showDemoWindow
+      showAboutWindow
+      showUserGuide
+      showMetricsWindow
 
     render
     ImguiGL.openGL3RenderDrawData =<< getDrawData
     GLFW.swapBuffers win
-    mainLoop win font appState
+    mainLoop win font appState glObjects
