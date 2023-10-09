@@ -1,6 +1,6 @@
 module Render where
 
-import Foreign (Ptr, Storable (sizeOf), withArrayLen)
+import Foreign (Ptr, Storable (sizeOf), nullPtr, withArrayLen)
 import Graphics.Rendering.OpenGL as GL
 import Linear as Lin
 import Numeric.Natural (Natural)
@@ -47,7 +47,15 @@ createVBO vertices = do
 drawPlot :: Natural -> GLfloat -> GLfloat -> M44 GLfloat -> IO ()
 drawPlot plotSize a l transMatrix = do
   GL.clearColor $= Color4 0 0 0 1
-  
+  frameBuf <- genObjectName :: IO FramebufferObject
+  bindFramebuffer Framebuffer $= frameBuf
+  renderedTexture <- genObjectName :: IO TextureObject
+  textureBinding Texture2D $= Just renderedTexture
+  texImage2D Texture2D NoProxy 0 RGB' (TextureSize2D 1024 768) 0 (PixelData RGB UnsignedByte nullPtr)
+  textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
+  framebufferTexture2D Framebuffer (ColorAttachment 0) Texture2D renderedTexture 0
+  GL.drawBuffer $= FBOColorAttachment 0
+  viewport $= (Position 0 0, Size 1024 768) 
   GL.clear [ColorBuffer]
   undefined
   where
