@@ -84,12 +84,8 @@ int main(void)
 	vec = trans * vec;
 	std::cout << vec.x << vec.y << vec.z << std::endl;
 
-	//VAO VAO1;
 	VAO gridVAO;
 	VAO graphVAO;
-	//VAO1.Bind();
-
-	//VBO VBO1(vertices, sizeof(vertices));
 
 	gridVAO.Bind();
 	VBO gridVBO((GLfloat*)(grid.data()), grid.size() * sizeof(point));
@@ -99,27 +95,8 @@ int main(void)
 	VBO graphVBO((GLfloat*)(graph.data()), graph.size() * sizeof(point));
 	graphVAO.LinkAttrib(graphVBO, 0, 2, GL_FLOAT, sizeof(point), nullptr);
 
-	
-	//VBO VBO1((GLfloat*)(allPoints.data()), allPoints.size()*sizeof(point));
-	
-	//EBO EBO1(indices, sizeof(indices));
-
-	//VAO1.LinkAttrib(VBO1, 0, 2, GL_FLOAT, sizeof(point), nullptr);
-	//VAO1.LinkAttrib(graphVBO, 0, 2, GL_FLOAT, sizeof(point), nullptr);
-	//VAO1.Unbind();
-
-	
-	/*gridVAO.Unbind();*/
-	//VAO1.LinkAttrib(VBO1, 0, 3, GL_FLOAT, 6 * sizeof(float), nullptr);
-	//VAO1.LinkAttrib(VBO1, 1, 3, GL_FLOAT, 6 * sizeof(float), (void*)(3 * sizeof(float)));
-
 	gridVAO.Unbind();
 	graphVAO.Unbind();
-	//VAO1.Unbind();
-	//VBO1.Unbind();
-	
-	//EBO1.Unbind();
-
 	graphShader.Activate();
 
 	//GLCall(auto transformLoc = glGetUniformLocation(shaderProgram.ID, "u_transform"));
@@ -155,9 +132,7 @@ int main(void)
 	}
 
 	// DELETE EVERy object we've created
-	//VAO1.Delete();
-	//VBO1.Delete();
-	//EBO1.Delete();
+
 	gridVAO.Delete();
 	graphVAO.Delete();
 	gridVBO.Delete();
