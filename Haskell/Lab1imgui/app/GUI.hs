@@ -3,8 +3,8 @@
 
 module GUI where
 
-import Control.Exception (bracket, bracket_)
-import Control.Monad (unless, when)
+import Control.Exception (bracket, bracket_, assert, try)
+import Control.Monad (unless, when, replicateM)
 import Control.Monad.Managed
 -- import Data.Foldable (for_)
 
@@ -17,6 +17,9 @@ import DearImGui.GLFW.OpenGL as ImguiGLFWGL
 import qualified DearImGui.OpenGL3 as ImguiGL
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
+import GHC.IO.Exception (assertError)
+import Data.List (nub)
+import Foreign (malloc)
 
 -- import DearImGui.Raw.Font.GlyphRanges(Builtin(Cyrillic))
 makeWindow :: Managed (Maybe Window)
@@ -54,11 +57,15 @@ setup win = runManaged $ do
   _ <- managed_ $ bracket_ ImguiGL.openGL3Init ImguiGL.openGL3Shutdown
   return ()
 
-data SnailSettings = SnailSettings {a :: IORef Text, l :: IORef Text}
+data SnailSettings = SnailSettings {a :: IORef Text, l :: IORef Text} deriving Eq
 
-data Vector3S = Vector3S (IORef Text) (IORef Text) (IORef Text)
+data Vector3S = Vector3S (IORef Text) (IORef Text) (IORef Text) deriving Eq
 
-data AppState = AppState {snail :: SnailSettings, scaleV :: Vector3S, translateV :: Vector3S, rotateV :: Vector3S, rotDeg :: IORef Text}
+data AppState = AppState {snail :: SnailSettings, scaleV :: Vector3S, translateV :: Vector3S, rotateV :: Vector3S, rotDeg :: IORef Text} deriving Eq
+
+-- floatInput :: IO ()
+-- floatInput = 
+
 
 defaultState :: IO AppState
 defaultState = do
@@ -74,6 +81,9 @@ defaultState = do
   rotY <- newIORef "0"
   rotZ <- newIORef "0"
   rotD <- newIORef "0"
+  replicateM
+  let ones = [aa,ll,scaleX,scaleY,scaleZ]
+  let zeros =[trX, trY, trZ, rotY,rotY,rotZ, rotD]
 
   return
     AppState
@@ -84,7 +94,7 @@ defaultState = do
         rotDeg = rotD
       }
   where
-    
+
 
 mainLoop :: Window -> Font -> AppState -> IO ()
 mainLoop win font appState = do
@@ -104,6 +114,7 @@ mainLoop win font appState = do
           text "Pascal Snail"
           _ <- inputText "a" (a $ snail appState) 3
           _ <- inputText "l" (l $ snail appState) 3
+
 
           text "scale vector"
           let (Vector3S sx sy sz) = scaleV appState
@@ -126,7 +137,7 @@ mainLoop win font appState = do
 
 
           -- when inputing $ putStrLn "inputing!"
-          -- Add a button widget, and call 'putStrLn' when it's clicked
+              -- Add a button widget, and call 'putStrLn' when it's clicked
           clicking <- button "Clickety Click"
 
           when clicking $
@@ -142,6 +153,9 @@ mainLoop win font appState = do
 
           -- mkTable tableRef
           showDemoWindow
+          showAboutWindow
+          showUserGuide
+          showMetricsWindow
 
     -- Render
     GL.clear [GL.ColorBuffer]

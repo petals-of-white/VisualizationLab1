@@ -1,4 +1,8 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module State where
+import Data.IORef
+import Data.Text (Text)
 
 data SnailSettings = SnailSettings {a :: IORef Text, l :: IORef Text}
 
@@ -8,18 +12,18 @@ data AppState = AppState {snail :: SnailSettings, scaleV :: Vector3S, translateV
 
 defaultState :: IO AppState
 defaultState = do
-  aa <- newIORef "1"
-  ll <- newIORef "1"
-  scaleX <- newIORef "1"
-  scaleY <- newIORef "1"
-  scaleZ <- newIORef "1"
-  trX <- newIORef "0"
-  trY <- newIORef "0"
-  trZ <- newIORef "0"
-  rotX <- newIORef "0"
-  rotY <- newIORef "0"
-  rotZ <- newIORef "0"
-  rotD <- newIORef "0"
+  aa <- one
+  ll <- one
+  scaleX <- one
+  scaleY <- one
+  scaleZ <- one
+  trX <- zero
+  trY <- zero
+  trZ <- zero
+  rotX <-zero
+  rotY <-zero
+  rotZ <-zero
+  rotD <-zero
 
   return
     AppState
@@ -30,3 +34,5 @@ defaultState = do
         rotDeg = rotD
       }
   where
+    one = putStrLn "New 'One' allocation" >> newIORef "1"
+    zero = putStrLn "New 'One' allocation" >> newIORef "0"
