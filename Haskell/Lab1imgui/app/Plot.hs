@@ -21,6 +21,16 @@ plotPascalSnail a l size = map snail [0, step .. (2 * pi)]
     snail = pascalSnail a l
     step = 2.0 * pi / realToFrac size
 
+
+defaultGridSize :: Natural
+defaultGridSize = 10
+
+defaultA :: Floating a => a
+defaultA = 1
+
+defaultL :: Floating a => a
+defaultL = defaultA
+
 plotGrid :: (Floating a, Enum a) => Natural -> Plot a
 plotGrid size =
   let step = 2.0 / realToFrac size

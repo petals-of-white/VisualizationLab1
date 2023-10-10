@@ -119,7 +119,6 @@ int main(void)
 		gridShader.Activate();
 		GLCall(glDrawArrays(GL_LINES, 0, grid.size()));
 
-
 		graphVAO.Bind();
 		graphShader.Activate();
 		GLCall(glDrawArrays(GL_LINES, 0, graph.size()));

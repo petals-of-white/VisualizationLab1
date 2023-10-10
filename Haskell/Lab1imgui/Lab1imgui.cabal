@@ -49,7 +49,9 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
--- extra-source-files:
+extra-source-files: shaders/*
+
+data-files: shaders/*
 
 common warnings
     ghc-options: -Wall
@@ -62,7 +64,7 @@ executable Lab1imgui
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Plot, GUI, Render
+    other-modules: Plot, GUI, Render, Paths_Lab1imgui
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

@@ -4,9 +4,10 @@
 module GUI where
 
 import Control.Exception (bracket, bracket_)
-import Control.Monad (replicateM, unless, void, when)
+import Control.Monad (replicateM, unless, when)
 import Control.Monad.Managed hiding (with)
 import Data.IORef
+import Data.Maybe (fromMaybe)
 import Data.Text (Text)
 import DearImGui as Imgui hiding (ImVec3 (..), ImVec4 (x, y))
 import DearImGui.FontAtlas as Atlas
@@ -17,6 +18,10 @@ import Foreign (WordPtr (WordPtr), castPtr, wordPtrToPtr)
 import Foreign.Marshal (with)
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
+import Linear (V3 (..))
+import Plot (transformMatrix)
+import Render
+import Text.Read (readMaybe)
 
 -- import DearImGui.Raw.Font.GlyphRanges(Builtin(Cyrillic))
 makeWindow :: Managed (Maybe Window)
@@ -35,9 +40,6 @@ addGlobalStyles = do
   fonts <- rebuild $ [fontSrc, Atlas.DefaultFont]
   return $ head fonts
 
--- where
--- csOptions = mconcat [fontNo 0, glyphOffset (0, -1)]
-
 setup :: Window -> IO ()
 setup win = runManaged $ do
   liftIO $ do
@@ -54,9 +56,21 @@ setup win = runManaged $ do
   _ <- managed_ $ bracket_ ImguiGL.openGL3Init ImguiGL.openGL3Shutdown
   return ()
 
+textToFloat :: Text -> Maybe Float
+textToFloat = readMaybe . show
+
+textToFloatDef :: Float -> Text -> Float
+textToFloatDef def = fromMaybe def . textToFloat
+
+-- textRefToFloat :: IORef Text -> IO
 data SnailSettings = SnailSettings {a :: IORef Text, l :: IORef Text} deriving (Eq)
 
 data Vector3S = Vector3S (IORef Text) (IORef Text) (IORef Text) deriving (Eq)
+
+vector3StoVec3 :: Vector3S -> IO (V3 Float)
+vector3StoVec3 (Vector3S xref yref zref) = do
+  [xv, yv, zv] <- mapM readIORef [xref, yref, zref]
+  return $ V3 (textToFloatDef 1 xv) (textToFloatDef 1 yv) (textToFloatDef 1 zv)
 
 data AppState = AppState
   { snail :: SnailSettings,
@@ -82,16 +96,6 @@ defaultState = do
         rotateV = Vector3S rotX rotY rotZ,
         rotDeg = rotD
       }
-
-data GLObjects = GLObjects
-  { gridVAO :: VertexArrayObject,
-    gridVBO :: BufferObject,
-    gridShader :: Program,
-    graphVAO :: VertexArrayObject,
-    graphVBO :: BufferObject,
-    graphShader :: Program,
-    targetTexture :: TextureObject
-  }
 
 mainLoop :: Window -> Font -> AppState -> GLObjects -> IO ()
 mainLoop win font appState glObjects = do
@@ -140,14 +144,33 @@ mainLoop win font appState glObjects = do
               tint = ImVec4 1 1 1 1
               bg = tint
 
-          -- [sz, uv0,uv1]
+          let AppState
+                { snail = SnailSettings {a = aText, l = lText},
+                  scaleV = scaleVT,
+                  translateV = translateVT,
+                  rotateV = rotateVT,
+                  rotDeg = rotDegT
+                  -- scaleV = Vector3S scaleVTx scaleVTy scaleVTz,
+                  -- translateV = Vector3S transVTx transVTy transVTz,
+                  -- rotateV = Vector3S rotVTx rotVTy rotVTz
+                } = appState
+          [scV, transV, rotV] <- mapM vector3StoVec3 [scaleVT, translateVT, rotateVT]
+          av <- textToFloatDef 1 <$> readIORef aText
+          lv <- textToFloatDef 1 <$> readIORef lText
+          rotD <- textToFloatDef 0 <$> readIORef rotDegT
+          let transMat = transformMatrix scV transV rotV rotD
+
+          drawPlot 3000 glObjects av lv transMat
+
+          -- 
           with siz \szPtr ->
             with uv0 \uv0Ptr ->
               with uv1 \uv1Ptr ->
                 with tint \tintPtr ->
                   with bg \bgPtr ->
                     image texPtr szPtr uv0Ptr uv1Ptr tintPtr bgPtr
-          -- image texPtr
+          
+
           -- Add a button widget, and call 'putStrLn' when it's clicked
           clicking <- button "Clickety Click"
 

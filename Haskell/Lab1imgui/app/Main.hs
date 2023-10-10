@@ -18,20 +18,21 @@ import Foreign (Storable (sizeOf), nullPtr)
 import GUI
 import Graphics.Rendering.OpenGL.GL as GL
 import qualified Graphics.UI.GLFW as GLFW
+import Paths_Lab1imgui
 import Plot
 import Render
 
-gridVertShader :: FilePath
-gridVertShader = "shaders/grid.vert"
+gridVertShader :: IO FilePath
+gridVertShader = getDataFileName "shaders/grid.vert"
 
-gridFragShader :: FilePath
-gridFragShader = "shaders/grid.frag"
+gridFragShader :: IO FilePath
+gridFragShader = getDataFileName "shaders/grid.frag"
 
-graphVertShader :: FilePath
-graphVertShader = "shaders/graph.vert"
+graphVertShader :: IO FilePath
+graphVertShader = getDataFileName "shaders/graph.vert"
 
-graphFragShader :: FilePath
-graphFragShader = "shaders/graph.frag"
+graphFragShader :: IO FilePath
+graphFragShader = getDataFileName "shaders/graph.frag"
 
 main :: IO ()
 main = do
@@ -54,10 +55,10 @@ main = do
         -- Initialize ImGui's OpenGL backend
         _ <- managed_ $ bracket_ ImguiGL.openGL3Init ImguiGL.openGL3Shutdown
         liftIO $ do
-          font <- addGlobalStyles
-          initState <- defaultState
-          gridShader <- prepareProgram gridVertShader gridFragShader
-          graphShader <- prepareProgram graphVertShader graphFragShader
+          [gridVertShaderPath, gridFragShaderPath, graphVertShaderPath, graphFragShaderPath] <-
+            sequence [gridVertShader, gridFragShader, graphVertShader, graphFragShader]
+          gridShader <- prepareProgram gridVertShaderPath gridFragShaderPath
+          graphShader <- prepareProgram graphVertShaderPath graphFragShaderPath
           gridVAO <- genObjectName
           graphVAO <- genObjectName
           graphVBO <- createVBO $ replicate 3000 0
@@ -73,20 +74,25 @@ main = do
           frameBuf <- genObjectName :: IO FramebufferObject
           bindFramebuffer Framebuffer $= frameBuf
 
-          -- texture
+          -- window and viewport size
           let viewportW = 1024
               viewportH = 768
 
+          -- texture creation, for we are going to render there
           renderedTexture <- genObjectName :: IO TextureObject
           textureBinding Texture2D $= Just renderedTexture
           texImage2D Texture2D NoProxy 0 RGB' (TextureSize2D viewportW viewportH) 0 (PixelData RGB UnsignedByte nullPtr)
           textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
           framebufferTexture2D Framebuffer (ColorAttachment 0) Texture2D renderedTexture 0
           GL.drawBuffer $= FBOColorAttachment 0
+
           viewport $= (Position 0 0, Size viewportW viewportH)
 
           let glObjects = GLObjects gridVAO gridVBO gridShader graphVAO graphVBO graphShader renderedTexture
 
+          font <- addGlobalStyles
+          initState <- defaultState
+          putStrLn "almost there!"
           mainLoop win font initState glObjects
 
           -- delete everything
