@@ -52,3 +52,4 @@ transformMatrix scaleVec translateVec rotateVec rotateDeg =
   where
     scaleM = scaled $ point scaleVec
     translateThenRotate = mkTransformation (Quaternion rotateDeg rotateVec) translateVec
+

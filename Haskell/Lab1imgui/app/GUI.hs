@@ -3,7 +3,7 @@
 
 module GUI where
 
-import Control.Exception (bracket, bracket_)
+import Control.Exception (bracket, bracket_, throwIO)
 import Control.Monad (replicateM, unless, when)
 import Control.Monad.Managed hiding (with)
 import Data.IORef
@@ -12,23 +12,28 @@ import Data.Text (Text)
 import DearImGui as Imgui hiding (ImVec3 (..), ImVec4 (x, y))
 import DearImGui.FontAtlas as Atlas
 import DearImGui.GLFW as ImguiGLFW
-import DearImGui.GLFW.OpenGL as ImguiGLFWGL
 import qualified DearImGui.OpenGL3 as ImguiGL
 import Foreign (WordPtr (WordPtr), castPtr, wordPtrToPtr)
 import Foreign.Marshal (with)
+import GHC.Natural (Natural)
+import GLHelpers
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Linear (V3 (..))
 import Plot (transformMatrix)
-import Render
 import Text.Read (readMaybe)
 
 -- import DearImGui.Raw.Font.GlyphRanges(Builtin(Cyrillic))
-makeWindow :: Managed (Maybe Window)
-makeWindow = managed $ bracket (GLFW.createWindow 800 600 "Hello, Dear ImGui!" Nothing Nothing) (maybe (return ()) GLFW.destroyWindow)
+makeWindow :: Size -> Managed (Maybe Window)
+makeWindow (Size width height) =
+  managed $
+    bracket
+      (GLFW.createWindow (fromIntegral width) (fromIntegral height) "Равлик паскаля" Nothing Nothing)
+      (maybe (return ()) GLFW.destroyWindow)
 
 initGLFW :: IO ()
 initGLFW = do
+  setErrorCallback (Just \err msg -> putStrLn $ show err ++ " " ++ msg)
   glfwInitialized <- GLFW.init
   unless glfwInitialized $ error "GLFW init failed"
 
@@ -37,24 +42,20 @@ addGlobalStyles = do
   styleColorsClassic
   pushStyleVar ImGuiStyleVar_WindowPadding (return $ Imgui.ImVec2 {x = 40, y = 40} :: IO Imgui.ImVec2)
   let fontSrc = FromTTF "C:\\Windows\\Fonts\\arial.ttf" 22 Nothing Latin
-  fonts <- rebuild $ [fontSrc, Atlas.DefaultFont]
+  fonts <- rebuild [fontSrc, Atlas.DefaultFont]
   return $ head fonts
 
-setup :: Window -> IO ()
-setup win = runManaged $ do
-  liftIO $ do
-    GLFW.makeContextCurrent (Just win)
-    GLFW.swapInterval 1
-
-  -- Create an ImGui context
-  _ <- managed $ bracket createContext destroyContext
-
-  -- not sure why we need it but okay
-  _ <- managed_ $ bracket_ (ImguiGLFWGL.glfwInitForOpenGL win True) ImguiGLFW.glfwShutdown
-
-  -- Initialize ImGui's OpenGL backend
-  _ <- managed_ $ bracket_ ImguiGL.openGL3Init ImguiGL.openGL3Shutdown
-  return ()
+debugGL :: IO ()
+debugGL = do
+  debugOutput $= Enabled
+  debugOutputSynchronous $= Enabled
+  debugMessageCallback
+    $= Just
+      ( \msg ->
+          case msg of
+            (DebugMessage src DebugTypeError msgId sev str) -> error $ show msg
+            _ -> print msg
+      )
 
 textToFloat :: Text -> Maybe Float
 textToFloat = readMaybe . show
@@ -97,104 +98,120 @@ defaultState = do
         rotDeg = rotD
       }
 
-mainLoop :: Window -> Font -> AppState -> GLObjects -> IO ()
-mainLoop win font appState glObjects = do
-  -- Process the event loop
-  GLFW.pollEvents
-  close <- GLFW.windowShouldClose win
-  unless close do
-    -- Tell ImGui we're starting a new frame
-    ImguiGL.openGL3NewFrame
-    ImguiGLFW.glfwNewFrame
-    Imgui.newFrame
+type CanvasSize = Size
 
-    setNextWindowSize (return $ ImVec2 {x = 600, y = 600} :: IO ImVec2) ImGuiCond_Once
+type ImguiWinSize = Size
 
-    -- Build the GUI
-    let body = withWindowOpen "Close your eyees" do
-          -- Add a text widget
-          text "Pascal Snail"
-          _ <- inputText "a" (a $ snail appState) 3
-          _ <- inputText "l" (l $ snail appState) 3
+mainLoop :: Window -> Font -> AppState -> GLObjects -> Natural -> Natural -> CanvasSize -> ImguiWinSize -> IO ()
+mainLoop
+  win
+  font
+  appState
+  glObjects@GLObjects {targetTexture = TextureObject texId, frameBuffer = frameBuf}
+  snailPoints
+  gridSize
+  canvasSz@(Size canvasW canvasH)
+  winSize@(Size winW winH) = do
+    -- Process the event loop
+    GLFW.pollEvents
+    close <- GLFW.windowShouldClose win
 
-          text "scale vector"
-          let (Vector3S sx sy sz) = scaleV appState
-          _ <- valueInput "sx" sx
-          _ <- valueInput "sy" sy
-          _ <- valueInput "sz" sz
+    unless close do
+      -- Tell ImGui we're starting a new frame
+      ImguiGL.openGL3NewFrame
+      ImguiGLFW.glfwNewFrame
+      Imgui.newFrame
 
-          text "translation vector"
-          let (Vector3S tx ty tz) = translateV appState
-          _ <- valueInput "tx" tx
-          _ <- valueInput "ty" ty
-          _ <- valueInput "tz" tz
+      debugInfo 1 "frame initialized"
 
-          text "rotation vector"
-          let (Vector3S rx ry rz) = rotateV appState
-          _ <- valueInput "rx" rx
-          _ <- valueInput "ry" ry
-          _ <- valueInput "rz" rz
-          _ <- valueInput "Deg" (rotDeg appState)
+      GL.clear [ColorBuffer]
+      let texPtr = castPtr $ wordPtrToPtr $ WordPtr $ fromIntegral texId
+          siz = ImVec2 (fromIntegral canvasW) (fromIntegral canvasH)
+          uv0 = ImVec2 0 0
+          uv1 = ImVec2 1 1
+          tint = ImVec4 1 1 1 1
+          bg = tint
 
-          let (TextureObject texId) = targetTexture glObjects
-              texPtr = castPtr $ wordPtrToPtr $ WordPtr $ fromIntegral texId
-              siz = ImVec2 1024 768
-              uv0 = ImVec2 0 0
-              uv1 = ImVec2 1 1
-              tint = ImVec4 1 1 1 1
-              bg = tint
+      setNextWindowSize (return $ ImVec2 {x = fromIntegral winW, y = fromIntegral winH} :: IO ImVec2) ImGuiCond_Once
 
-          let AppState
-                { snail = SnailSettings {a = aText, l = lText},
-                  scaleV = scaleVT,
-                  translateV = translateVT,
-                  rotateV = rotateVT,
-                  rotDeg = rotDegT
-                  -- scaleV = Vector3S scaleVTx scaleVTy scaleVTz,
-                  -- translateV = Vector3S transVTx transVTy transVTz,
-                  -- rotateV = Vector3S rotVTx rotVTy rotVTz
-                } = appState
-          [scV, transV, rotV] <- mapM vector3StoVec3 [scaleVT, translateVT, rotateVT]
-          av <- textToFloatDef 1 <$> readIORef aText
-          lv <- textToFloatDef 1 <$> readIORef lText
-          rotD <- textToFloatDef 0 <$> readIORef rotDegT
-          let transMat = transformMatrix scV transV rotV rotD
+      -- Build the GUI
+      let body = withWindowOpen "Равлик паскаля" do
+            -- Add a text widget
+            text "Pascal Snail"
+            _ <- inputText "a" (a $ snail appState) 3
+            _ <- inputText "l" (l $ snail appState) 3
 
-          drawPlot 3000 glObjects av lv transMat
+            text "scale vector"
+            let (Vector3S sx sy sz) = scaleV appState
+            _ <- valueInput "sx" sx
+            _ <- valueInput "sy" sy
+            _ <- valueInput "sz" sz
 
-          -- 
-          with siz \szPtr ->
-            with uv0 \uv0Ptr ->
-              with uv1 \uv1Ptr ->
-                with tint \tintPtr ->
-                  with bg \bgPtr ->
-                    image texPtr szPtr uv0Ptr uv1Ptr tintPtr bgPtr
-          
+            text "translation vector"
+            let (Vector3S tx ty tz) = translateV appState
+            _ <- valueInput "tx" tx
+            _ <- valueInput "ty" ty
+            _ <- valueInput "tz" tz
 
-          -- Add a button widget, and call 'putStrLn' when it's clicked
-          clicking <- button "Clickety Click"
+            text "rotation vector"
+            let (Vector3S rx ry rz) = rotateV appState
+            _ <- valueInput "rx" rx
+            _ <- valueInput "ry" ry
+            _ <- valueInput "rz" rz
+            _ <- valueInput "Deg" (rotDeg appState)
 
-          when clicking $
-            putStrLn "Ow!"
+            with siz \szPtr ->
+              with uv0 \uv0Ptr ->
+                with uv1 \uv1Ptr ->
+                  with tint \tintPtr ->
+                    with bg \bgPtr ->
+                      image texPtr szPtr uv0Ptr uv1Ptr tintPtr bgPtr
 
-          itemContextPopup do
-            text "pop!"
-            button "ok" >>= \clicked ->
-              when clicked $
-                closeCurrentPopup
-          newLine
+            -- Add a button widget, and call 'putStrLn' when it's clicked
+            clicking <- button "Clickety Click"
 
-    -- Render
-    GL.clear [GL.ColorBuffer]
+            when clicking $
+              putStrLn "Ow!"
 
-    withFont font do
-      body
-      showDemoWindow
-      showAboutWindow
-      showUserGuide
-      showMetricsWindow
+            itemContextPopup do
+              text "pop!"
+              button "ok" >>= \clicked ->
+                when clicked closeCurrentPopup
+            newLine
 
-    render
-    ImguiGL.openGL3RenderDrawData =<< getDrawData
-    GLFW.swapBuffers win
-    mainLoop win font appState glObjects
+      -- Render
+      GL.clear [GL.ColorBuffer]
+
+      let AppState
+            { snail = SnailSettings {a = aText, l = lText},
+              scaleV = scaleVT,
+              translateV = translateVT,
+              rotateV = rotateVT,
+              rotDeg = rotDegT
+            } = appState
+
+      vectors@[scV, transV, rotV] <- mapM vector3StoVec3 [scaleVT, translateVT, rotateVT]
+
+      debugInfo 1 $ "Вектори: " ++ show vectors ++ "\n"
+      av <- textToFloatDef 1 <$> readIORef aText
+      lv <- textToFloatDef 1 <$> readIORef lText
+      rotD <- textToFloatDef 0 <$> readIORef rotDegT
+      let transMat = transformMatrix scV transV rotV rotD
+      debugInfo 2 $ "Matrix initialized!" ++ show transMat
+
+      -- bindFramebuffer Framebuffer $= frameBuf
+      drawPlot snailPoints gridSize glObjects av lv transMat
+      -- bindFramebuffer Framebuffer $= defaultFramebufferObject
+
+      debugInfo 3 "Plot ready!"
+      withFont font do
+        body
+      -- showDemoWindow
+      -- showAboutWindow
+      -- showUserGuide
+      -- showMetricsWindow
+
+      render
+      ImguiGL.openGL3RenderDrawData =<< getDrawData
+      GLFW.swapBuffers win
+      mainLoop win font appState glObjects snailPoints gridSize canvasSz winSize

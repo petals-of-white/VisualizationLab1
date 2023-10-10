@@ -64,7 +64,7 @@ executable Lab1imgui
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Plot, GUI, Render, Paths_Lab1imgui
+    other-modules: Plot, GUI, GLHelpers, Paths_Lab1imgui
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
