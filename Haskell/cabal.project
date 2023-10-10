@@ -2,3 +2,6 @@ packages: Lab1imgui
 
 package dear-imgui
     flags: -sdl +glfw +opengl3
+
+optimization: False
+package Lab1imgui

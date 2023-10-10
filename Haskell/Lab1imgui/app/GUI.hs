@@ -20,7 +20,7 @@ import GLHelpers
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Linear (V3 (..))
-import Plot (transformMatrix)
+import Plot (Point (..), plotGrid, transformMatrix)
 import Text.Read (readMaybe)
 
 -- import DearImGui.Raw.Font.GlyphRanges(Builtin(Cyrillic))
@@ -40,7 +40,7 @@ initGLFW = do
 addGlobalStyles :: IO Font
 addGlobalStyles = do
   styleColorsClassic
-  pushStyleVar ImGuiStyleVar_WindowPadding (return $ Imgui.ImVec2 {x = 40, y = 40} :: IO Imgui.ImVec2)
+  pushStyleVar ImGuiStyleVar_WindowPadding (return $ Imgui.ImVec2 {Imgui.x = 40, Imgui.y = 40} :: IO Imgui.ImVec2)
   let fontSrc = FromTTF "C:\\Windows\\Fonts\\arial.ttf" 22 Nothing Latin
   fonts <- rebuild [fontSrc, Atlas.DefaultFont]
   return $ head fonts
@@ -50,12 +50,8 @@ debugGL = do
   debugOutput $= Enabled
   debugOutputSynchronous $= Enabled
   debugMessageCallback
-    $= Just
-      ( \msg ->
-          case msg of
-            (DebugMessage src DebugTypeError msgId sev str) -> error $ show msg
-            _ -> print msg
-      )
+    $= Just print
+    >> putStrLn ""
 
 textToFloat :: Text -> Maybe Float
 textToFloat = readMaybe . show
@@ -132,7 +128,7 @@ mainLoop
           tint = ImVec4 1 1 1 1
           bg = tint
 
-      setNextWindowSize (return $ ImVec2 {x = fromIntegral winW, y = fromIntegral winH} :: IO ImVec2) ImGuiCond_Once
+      setNextWindowSize (return $ ImVec2 {Imgui.x = fromIntegral winW, Imgui.y = fromIntegral winH} :: IO ImVec2) ImGuiCond_Once
 
       -- Build the GUI
       let body = withWindowOpen "Равлик паскаля" do
@@ -160,6 +156,7 @@ mainLoop
             _ <- valueInput "rz" rz
             _ <- valueInput "Deg" (rotDeg appState)
 
+            plotHistogram "Plot" $ concatMap (\Plot.Point {Plot.x = xx, Plot.y = yy} -> [xx, yy]) $ plotGrid gridSize
             with siz \szPtr ->
               with uv0 \uv0Ptr ->
                 with uv1 \uv1Ptr ->
@@ -192,26 +189,34 @@ mainLoop
 
       vectors@[scV, transV, rotV] <- mapM vector3StoVec3 [scaleVT, translateVT, rotateVT]
 
-      debugInfo 1 $ "Вектори: " ++ show vectors ++ "\n"
+      debugInfo 1 $ "Vectors: " ++ show vectors ++ "\n"
       av <- textToFloatDef 1 <$> readIORef aText
       lv <- textToFloatDef 1 <$> readIORef lText
       rotD <- textToFloatDef 0 <$> readIORef rotDegT
       let transMat = transformMatrix scV transV rotV rotD
+
       debugInfo 2 $ "Matrix initialized!" ++ show transMat
 
-      -- bindFramebuffer Framebuffer $= frameBuf
+      bindFramebuffer Framebuffer $= frameBuf
+      -- oldViewPort <- get viewport
+      -- viewport $= (Position 0 0, canvasSz)
+      -- plotLines "Plot?" $ plot
       drawPlot snailPoints gridSize glObjects av lv transMat
-      -- bindFramebuffer Framebuffer $= defaultFramebufferObject
-
+      -- viewport $= oldViewPort
+      bindFramebuffer Framebuffer $= defaultFramebufferObject
       debugInfo 3 "Plot ready!"
       withFont font do
         body
-      -- showDemoWindow
-      -- showAboutWindow
-      -- showUserGuide
-      -- showMetricsWindow
+        -- showDemoWindow
+        -- showAboutWindow
+        -- showUserGuide
+        showMetricsWindow
 
       render
+      debugInfo 1 "NextFrame rendered"
       ImguiGL.openGL3RenderDrawData =<< getDrawData
+      debugInfo 2 "new frame rendered!!!"
       GLFW.swapBuffers win
+
       mainLoop win font appState glObjects snailPoints gridSize canvasSz winSize
+    debugInfo 1 "Closing GLFW window..."

@@ -4,7 +4,7 @@ import Data.Tuple (swap)
 import Linear as Lin
 import Numeric.Natural (Natural)
 
-data Point a = Point {x :: a, y :: a}
+data Point a = Point {x :: a, y :: a} deriving Show
 
 type Plot a = [Point a]
 

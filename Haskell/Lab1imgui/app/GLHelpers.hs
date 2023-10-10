@@ -1,12 +1,12 @@
 module GLHelpers where
 
 import Data.Foldable (Foldable (toList))
-import Foreign (Storable (sizeOf), nullPtr, withArrayLen)
+import Foreign (Storable (sizeOf), withArrayLen)
 import Graphics.Rendering.OpenGL as GL
   ( AttribLocation,
     BufferObject,
     BufferTarget (ArrayBuffer),
-    BufferUsage (StaticDraw),
+    BufferUsage (StaticDraw, DynamicDraw),
     Capability (Enabled),
     ClearBuffer (ColorBuffer),
     DebugMessage (DebugMessage),
@@ -135,8 +135,10 @@ drawPlot
   a
   l
   transMatrix = do
+
     GL.clear [ColorBuffer]
     debugInfo 10 $ show (snailSize, gridSize, graphShader, gridShader, gridVAO, gridVBO, graphVAO, graphVBO)
+    debugInfo 10 "Drawing grid..."
     -- DRAW GRID
     bindVertexArrayObject $= Just gridVAO
     bindBuffer ArrayBuffer $= Just gridVBO
@@ -145,12 +147,16 @@ drawPlot
     withArrayLen
       (concatMap (\Plot.Point {x = xx, y = yy} -> [xx, yy]) grid)
       ( \size arr ->
-          let sizeInBytes = fromIntegral $ 2 * sizeOf (1.0 :: Float) * size
-           in bufferData ArrayBuffer $= (sizeInBytes, arr, StaticDraw)
+          let sizeInBytes = fromIntegral $ sizeOf (1.0 :: Float) * size
+           in bufferData ArrayBuffer $= (sizeInBytes, arr, DynamicDraw)
       )
-    drawArrays Lines 0 (fromIntegral $ length grid)
+    drawArrays Lines 0 (fromIntegral gridSize)
 
     debugInfo 5 "grid drawn!"
+
+    debugInfo 5 "drawing plot..."
+
+    -- debugInfo 15 $ "Snail is : " ++ show snail
 
     -- DRAW PLOT --
     bindVertexArrayObject $= Just graphVAO
@@ -160,17 +166,22 @@ drawPlot
     -- upload transofrm matrix
     transMatLoc <- get $ uniformLocation graphShader transMatUniName
     realMatrix <- newMatrix ColumnMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
+
     uniform transMatLoc $= realMatrix
+
+    debugInfo 5 "Uniform uploaded"
 
     withArrayLen
       (concatMap (\Plot.Point {x = xx, y = yy} -> [xx, yy]) snail)
       ( \size arr ->
-          let sizeInBytes = fromIntegral $ 2 * sizeOf (1.0 :: GLfloat) * size
-           in bufferData ArrayBuffer $= (sizeInBytes, arr, StaticDraw)
+          let sizeInBytes = fromIntegral $ sizeOf (1.0 :: GLfloat) * size
+           in bufferData ArrayBuffer $= (sizeInBytes, arr, DynamicDraw)
       )
     drawArrays Lines 0 (fromIntegral snailSize)
 
     debugInfo 6 "plot drawn"
+    bindBuffer ArrayBuffer $= Nothing
+    bindVertexArrayObject $= Nothing
     where
       snail = normalizedToGL $ plotPascalSnail a l snailSize
-      grid = plotGrid gridSize :: Plot GLfloat
+      grid = normalizedToGL $ plotGrid gridSize :: Plot GLfloat

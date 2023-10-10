@@ -16,13 +16,13 @@ import qualified DearImGui.GLFW.OpenGL as ImguiGLFWGL
 import qualified DearImGui.OpenGL3 as ImguiGL
 import DearImGui.Raw (destroyContext)
 import Foreign (Storable (sizeOf), nullPtr)
+import GLHelpers
 import GUI
 import Graphics.Rendering.OpenGL.GL as GL
 import qualified Graphics.UI.GLFW as GLFW
+import Numeric.Natural (Natural)
 import Paths_Lab1imgui
 import Plot
-import GLHelpers
-import Numeric.Natural (Natural)
 
 gridVertShader :: IO FilePath
 gridVertShader = getDataFileName "shaders/grid.vert"
@@ -38,7 +38,6 @@ graphFragShader = getDataFileName "shaders/graph.frag"
 
 main :: IO ()
 main = do
-  
   let glfwWindowSize@(Size imguiWinW imguiWinH) = Size 1920 1080
       snailPoints = 3000 :: Natural
       gridSize = 10 :: Natural
@@ -57,7 +56,7 @@ main = do
 
         -- Create an ImGui context
         _ <- managed $ bracket createContext destroyContext
-        
+
         -- not sure why we need it but okay
         _ <- managed_ $ bracket_ (ImguiGLFWGL.glfwInitForOpenGL win True) ImguiGLFW.glfwShutdown
 
@@ -85,12 +84,10 @@ main = do
           graphVAO <- genObjectName
           bindVertexArrayObject $= Just graphVAO
 
-          graphVBO <- createVBO $ replicate (fromIntegral snailPoints) 0  
+          graphVBO <- createVBO $ replicate (fromIntegral snailPoints) 0
           linkAttrib graphVBO (AttribLocation 0) ToFloat vad
 
           debugInfo 1 "Grid stuff created"
-
-          viewport $= (Position 0 0, canvasSize)
 
           -- frame buffers
           frameBuf <- genObjectName :: IO FramebufferObject
@@ -100,7 +97,7 @@ main = do
           renderedTexture <- genObjectName :: IO TextureObject
           textureBinding Texture2D $= Just renderedTexture
           texImage2D Texture2D NoProxy 0 RGB' (TextureSize2D canvasW canvasH) 0 (PixelData RGB UnsignedByte nullPtr)
-          textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
+          textureFilter Texture2D $= ((Linear', Nothing), Linear')
           framebufferTexture2D Framebuffer (ColorAttachment 0) Texture2D renderedTexture 0
           -- textureBinding Texture2D $= Nothing
 
