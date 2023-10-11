@@ -8,7 +8,7 @@ import Control.Monad (replicateM, unless, when)
 import Control.Monad.Managed hiding (with)
 import Data.IORef
 import Data.Maybe (fromMaybe)
-import Data.Text (Text)
+import Data.Text (Text, unpack)
 import DearImGui as Imgui hiding (ImVec3 (..), ImVec4 (x, y))
 import DearImGui.FontAtlas as Atlas
 import DearImGui.GLFW as ImguiGLFW
@@ -54,7 +54,7 @@ debugGL = do
     >> putStrLn ""
 
 textToFloat :: Text -> Maybe Float
-textToFloat = readMaybe . show
+textToFloat = readMaybe . unpack
 
 textToFloatDef :: Float -> Text -> Float
 textToFloatDef def = fromMaybe def . textToFloat
@@ -194,16 +194,19 @@ mainLoop
       lv <- textToFloatDef 1 <$> readIORef lText
       rotD <- textToFloatDef 0 <$> readIORef rotDegT
       let transMat = transformMatrix scV transV rotV rotD
-
       debugInfo 2 $ "Matrix initialized!" ++ show transMat
 
-      bindFramebuffer Framebuffer $= frameBuf
-      -- oldViewPort <- get viewport
+      oldViewPort <- get viewport
+      debugInfo 10 $ "Old view port: " ++ show oldViewPort
+
       -- viewport $= (Position 0 0, canvasSz)
+      bindFramebuffer Framebuffer $= frameBuf
+      viewport $= (Position 0 0, canvasSz)
+      debugInfo 3 $ "New view port " ++ show canvasSz
       -- plotLines "Plot?" $ plot
       drawPlot snailPoints gridSize glObjects av lv transMat
-      -- viewport $= oldViewPort
       bindFramebuffer Framebuffer $= defaultFramebufferObject
+      viewport $= oldViewPort
       debugInfo 3 "Plot ready!"
       withFont font do
         body

@@ -42,7 +42,7 @@ main = do
       snailPoints = 3000 :: Natural
       gridSize = 10 :: Natural
       -- window and viewport size
-      canvasSize@(Size canvasW canvasH) = Size 300 300
+      canvasSize@(Size canvasW canvasH) = Size 500 500
 
   initGLFW
   runManaged $ do
