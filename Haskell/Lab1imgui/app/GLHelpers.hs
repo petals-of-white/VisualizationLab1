@@ -23,9 +23,9 @@ import Graphics.Rendering.OpenGL as GL
     HasSetter (($=)),
     IntegerHandling,
     Matrix (newMatrix),
-    MatrixOrder (ColumnMajor),
+    MatrixOrder (ColumnMajor, RowMajor),
     ObjectName (deleteObjectNames),
-    PrimitiveMode (Lines),
+    PrimitiveMode (Lines, LineStrip),
     Program,
     Shader,
     ShaderType (FragmentShader, VertexShader),
@@ -165,7 +165,7 @@ drawPlot
 
     -- upload transofrm matrix
     transMatLoc <- get $ uniformLocation graphShader transMatUniName
-    realMatrix <- newMatrix ColumnMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
+    realMatrix <- newMatrix RowMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
 
     uniform transMatLoc $= realMatrix
 
@@ -177,7 +177,7 @@ drawPlot
           let sizeInBytes = fromIntegral $ sizeOf (1.0 :: GLfloat) * size
            in bufferData ArrayBuffer $= (sizeInBytes, arr, DynamicDraw)
       )
-    drawArrays Lines 0 (fromIntegral snailSize)
+    drawArrays LineStrip 0 (fromIntegral snailSize)
 
     debugInfo 6 "plot drawn"
     bindBuffer ArrayBuffer $= Nothing

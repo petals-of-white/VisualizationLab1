@@ -28,7 +28,7 @@ makeWindow :: Size -> Managed (Maybe Window)
 makeWindow (Size width height) =
   managed $
     bracket
-      (GLFW.createWindow (fromIntegral width) (fromIntegral height) "Равлик паскаля" Nothing Nothing)
+      (GLFW.createWindow (fromIntegral width) (fromIntegral height) "Pascal Snail" Nothing Nothing)
       (maybe (return ()) GLFW.destroyWindow)
 
 initGLFW :: IO ()
@@ -131,7 +131,7 @@ mainLoop
       setNextWindowSize (return $ ImVec2 {Imgui.x = fromIntegral winW, Imgui.y = fromIntegral winH} :: IO ImVec2) ImGuiCond_Once
 
       -- Build the GUI
-      let body = withWindowOpen "Равлик паскаля" do
+      let body = withWindowOpen "Pascal Snail" do
             -- Add a text widget
             text "Pascal Snail"
             _ <- inputText "a" (a $ snail appState) 3
@@ -156,7 +156,7 @@ mainLoop
             _ <- valueInput "rz" rz
             _ <- valueInput "Deg" (rotDeg appState)
 
-            plotHistogram "Plot" $ concatMap (\Plot.Point {Plot.x = xx, Plot.y = yy} -> [xx, yy]) $ plotGrid gridSize
+            -- plotHistogram "Plot" $ concatMap (\Plot.Point {Plot.x = xx, Plot.y = yy} -> [xx, yy]) $ plotGrid gridSize
             with siz \szPtr ->
               with uv0 \uv0Ptr ->
                 with uv1 \uv1Ptr ->

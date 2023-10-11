@@ -49,9 +49,9 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
-extra-source-files: shaders/*
+extra-source-files: shaders/*.vert shaders/*.frag
 
-data-files: shaders/*
+data-files: shaders/*.vert shaders/*.frag
 
 common warnings
     ghc-options: -Wall

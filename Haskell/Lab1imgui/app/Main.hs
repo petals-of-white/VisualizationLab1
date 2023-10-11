@@ -39,10 +39,10 @@ graphFragShader = getDataFileName "shaders/graph.frag"
 main :: IO ()
 main = do
   let glfwWindowSize@(Size imguiWinW imguiWinH) = Size 1920 1080
-      snailPoints = 3000 :: Natural
+      snailPoints = 5000 :: Natural
       gridSize = 10 :: Natural
       -- window and viewport size
-      canvasSize@(Size canvasW canvasH) = Size 500 500
+      canvasSize@(Size canvasW canvasH) = Size 600 600
 
   initGLFW
   runManaged $ do
@@ -62,9 +62,10 @@ main = do
 
         -- Initialize ImGui's OpenGL backend
         _ <- managed_ $ bracket_ ImguiGL.openGL3Init ImguiGL.openGL3Shutdown
+        
         liftIO $ do
           debugGL
-
+          lineWidth $= 3
           [gridVertShaderPath, gridFragShaderPath, graphVertShaderPath, graphFragShaderPath] <-
             sequence [gridVertShader, gridFragShader, graphVertShader, graphFragShader]
 

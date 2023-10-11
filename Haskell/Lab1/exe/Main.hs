@@ -8,7 +8,7 @@ main = do
 setup :: Window -> UI ()
 setup window = do
 
-  _ <- return window # set UI.title "Равлик паскаля"
+  _ <- return window # set UI.title "Pascal Snail"
   original <- UI.image # set UI.width 100 # set UI.height 100 # set UI.alt "Wow"
   transformed <- UI.image # set UI.width 100 # set UI.height 100 # set UI.alt "Kek"
   button <- UI.button # set UI.text "Перетворити!"
