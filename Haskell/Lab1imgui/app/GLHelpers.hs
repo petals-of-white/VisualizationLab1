@@ -150,7 +150,7 @@ drawPlot
           let sizeInBytes = fromIntegral $ sizeOf (1.0 :: Float) * size
            in bufferData ArrayBuffer $= (sizeInBytes, arr, DynamicDraw)
       )
-    drawArrays Lines 0 (fromIntegral gridSize)
+    drawArrays Lines 0 (fromIntegral gridSize * 4)
 
     debugInfo 5 "grid drawn!"
 
@@ -165,7 +165,7 @@ drawPlot
 
     -- upload transofrm matrix
     transMatLoc <- get $ uniformLocation graphShader transMatUniName
-    realMatrix <- newMatrix RowMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
+    realMatrix <- newMatrix ColumnMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
 
     uniform transMatLoc $= realMatrix
 

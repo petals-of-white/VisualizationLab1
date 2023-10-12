@@ -7,7 +7,6 @@ module Main (main) where
 
 import Control.Exception (bracket)
 import Control.Exception.Base (bracket_)
-import Control.Monad (unless)
 import Control.Monad.IO.Class
 import Control.Monad.Managed
 import DearImGui (createContext)
@@ -23,6 +22,7 @@ import qualified Graphics.UI.GLFW as GLFW
 import Numeric.Natural (Natural)
 import Paths_Lab1imgui
 import Plot
+import Control.Monad (when)
 
 gridVertShader :: IO FilePath
 gridVertShader = getDataFileName "shaders/grid.vert"
@@ -40,9 +40,10 @@ main :: IO ()
 main = do
   let glfwWindowSize@(Size imguiWinW imguiWinH) = Size 1920 1080
       snailPoints = 5000 :: Natural
-      gridSize = 10 :: Natural
+      gridSize = 11 :: Natural
       -- window and viewport size
       canvasSize@(Size canvasW canvasH) = Size 600 600
+      shouldDebug = False
 
   initGLFW
   runManaged $ do
@@ -62,9 +63,9 @@ main = do
 
         -- Initialize ImGui's OpenGL backend
         _ <- managed_ $ bracket_ ImguiGL.openGL3Init ImguiGL.openGL3Shutdown
-        
+
         liftIO $ do
-          debugGL
+          when shouldDebug debugGL
           lineWidth $= 3
           [gridVertShaderPath, gridFragShaderPath, graphVertShaderPath, graphFragShaderPath] <-
             sequence [gridVertShader, gridFragShader, graphVertShader, graphFragShader]
@@ -75,7 +76,7 @@ main = do
           debugInfo 1 "Grid shader created"
           gridVAO <- genObjectName
           bindVertexArrayObject $= Just gridVAO
-          gridVBO <- createVBO $ concatMap (\Plot.Point {x = xx, y = yy} -> [xx, yy]) (plotGrid gridSize)
+          gridVBO <- createVBO $ replicate (fromIntegral gridSize * 4) 0 --concatMap (\Plot.Point {x = xx, y = yy} -> [xx, yy]) (plotGrid gridSize)
           debugInfo 1 "Grid VBO created"
           linkAttrib gridVBO (AttribLocation 0) ToFloat vad
 
@@ -100,7 +101,7 @@ main = do
           texImage2D Texture2D NoProxy 0 RGB' (TextureSize2D canvasW canvasH) 0 (PixelData RGB UnsignedByte nullPtr)
           textureFilter Texture2D $= ((Linear', Nothing), Linear')
           framebufferTexture2D Framebuffer (ColorAttachment 0) Texture2D renderedTexture 0
-          -- textureBinding Texture2D $= Nothing
+
 
           status <- framebufferStatus Framebuffer
           case status of
@@ -120,10 +121,11 @@ main = do
                       }
               font <- addGlobalStyles
               initState <- defaultState
-              putStrLn "almost there!"
               clearColor $= Color4 0.8 0.8 0.8 1
               mainLoop win font initState glObjects snailPoints gridSize canvasSize glfwWindowSize
-            _ -> error ""
+
+            _ -> error "Framebuffer error"
+
           -- delete everything
           deleteObjectName frameBuf
           deleteObjectName renderedTexture

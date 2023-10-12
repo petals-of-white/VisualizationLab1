@@ -3,7 +3,7 @@
 
 module GUI where
 
-import Control.Exception (bracket, bracket_, throwIO)
+import Control.Exception (bracket)
 import Control.Monad (replicateM, unless, when)
 import Control.Monad.Managed hiding (with)
 import Data.IORef
@@ -19,11 +19,10 @@ import GHC.Natural (Natural)
 import GLHelpers
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
-import Linear (V3 (..))
-import Plot (Point (..), plotGrid, transformMatrix)
+import Linear (Quaternion (Quaternion), V3 (..))
+import Plot (defaultRotation, defaultScaleV, defaultSnailOptions, defaultTranslateV, transformMatrix, toRadians)
 import Text.Read (readMaybe)
 
--- import DearImGui.Raw.Font.GlyphRanges(Builtin(Cyrillic))
 makeWindow :: Size -> Managed (Maybe Window)
 makeWindow (Size width height) =
   managed $
@@ -62,19 +61,33 @@ textToFloatDef def = fromMaybe def . textToFloat
 -- textRefToFloat :: IORef Text -> IO
 data SnailSettings = SnailSettings {a :: IORef Text, l :: IORef Text} deriving (Eq)
 
-data Vector3S = Vector3S (IORef Text) (IORef Text) (IORef Text) deriving (Eq)
+type V3RefText = V3 (IORef Text)
 
-vector3StoVec3 :: Vector3S -> IO (V3 Float)
-vector3StoVec3 (Vector3S xref yref zref) = do
-  [xv, yv, zv] <- mapM readIORef [xref, yref, zref]
-  return $ V3 (textToFloatDef 1 xv) (textToFloatDef 1 yv) (textToFloatDef 1 zv)
+type QuaternionRefText = Quaternion (IORef Text)
+
+v3RefTextToVec3 :: V3RefText -> IO (Maybe (V3 Float))
+v3RefTextToVec3 (V3 xref yref zref) = do
+  texts <- mapM readIORef [xref, yref, zref]
+  let values = mapM textToFloat texts
+  return $ do
+    [xx, yy, zz] <- values
+    return $ V3 xx yy zz
+
+quatRefTextToquat :: QuaternionRefText -> IO (Maybe (Quaternion Float))
+quatRefTextToquat (Quaternion deg (V3 xref yref zref)) = do
+  texts <- mapM readIORef [xref, yref, zref, deg]
+  let values = mapM textToFloat texts
+  return $ do
+    [xx, yy, zz, degg] <- values
+    return $ Quaternion degg (V3 xx yy zz)
+
+-- return $ Quaternion deg (V3 (textToFloatDef 1 xv) (textToFloatDef 1 yv) (textToFloatDef 1 zv))
 
 data AppState = AppState
   { snail :: SnailSettings,
-    scaleV :: Vector3S,
-    translateV :: Vector3S,
-    rotateV :: Vector3S,
-    rotDeg :: IORef Text
+    scaleV :: V3RefText,
+    translateV :: V3RefText,
+    rotateQ :: QuaternionRefText
   }
   deriving (Eq)
 
@@ -83,15 +96,15 @@ valueInput label ref = inputText label ref 6
 
 defaultState :: IO AppState
 defaultState = do
+  let a = defaultSnailOptions
   [aa, ll, scaleX, scaleY, scaleZ] <- replicateM 5 $ newIORef "1"
   [trX, trY, trZ, rotX, rotY, rotZ, rotD] <- replicateM 7 $ newIORef "0"
   pure
     AppState
-      { snail = SnailSettings {a = aa, l = ll},
-        scaleV = Vector3S scaleX scaleY scaleZ,
-        translateV = Vector3S trX trY trZ,
-        rotateV = Vector3S rotX rotY rotZ,
-        rotDeg = rotD
+      { snail = SnailSettings {GUI.a = aa, GUI.l = ll},
+        scaleV = V3 scaleX scaleY scaleZ,
+        translateV = V3 trX trY trZ,
+        rotateQ = Quaternion rotD (V3 rotX rotY rotZ)
       }
 
 type CanvasSize = Size
@@ -102,7 +115,12 @@ mainLoop :: Window -> Font -> AppState -> GLObjects -> Natural -> Natural -> Can
 mainLoop
   win
   font
-  appState
+  appState@AppState
+    { snail = SnailSettings {GUI.a = aa, GUI.l = ll},
+      rotateQ = rotateQT@(Quaternion rotDT rotVT@(V3 rx ry rz)),
+      translateV = translateVT@(V3 tx ty tz),
+      scaleV = scaleVT@(V3 sx sy sz)
+    }
   glObjects@GLObjects {targetTexture = TextureObject texId, frameBuffer = frameBuf}
   snailPoints
   gridSize
@@ -134,29 +152,25 @@ mainLoop
       let body = withWindowOpen "Pascal Snail" do
             -- Add a text widget
             text "Pascal Snail"
-            _ <- inputText "a" (a $ snail appState) 3
-            _ <- inputText "l" (l $ snail appState) 3
+            _ <- valueInput "a" aa
+            _ <- valueInput "l" ll
 
             text "scale vector"
-            let (Vector3S sx sy sz) = scaleV appState
             _ <- valueInput "sx" sx
             _ <- valueInput "sy" sy
             _ <- valueInput "sz" sz
 
             text "translation vector"
-            let (Vector3S tx ty tz) = translateV appState
             _ <- valueInput "tx" tx
             _ <- valueInput "ty" ty
             _ <- valueInput "tz" tz
 
             text "rotation vector"
-            let (Vector3S rx ry rz) = rotateV appState
             _ <- valueInput "rx" rx
             _ <- valueInput "ry" ry
             _ <- valueInput "rz" rz
-            _ <- valueInput "Deg" (rotDeg appState)
+            _ <- valueInput "Deg" rotDT
 
-            -- plotHistogram "Plot" $ concatMap (\Plot.Point {Plot.x = xx, Plot.y = yy} -> [xx, yy]) $ plotGrid gridSize
             with siz \szPtr ->
               with uv0 \uv0Ptr ->
                 with uv1 \uv1Ptr ->
@@ -165,11 +179,8 @@ mainLoop
                       image texPtr szPtr uv0Ptr uv1Ptr tintPtr bgPtr
 
             -- Add a button widget, and call 'putStrLn' when it's clicked
-            clicking <- button "Clickety Click"
-
-            when clicking $
-              putStrLn "Ow!"
-
+            reset <- button "Reset"
+            -- when reset $ setDefaults appState
             itemContextPopup do
               text "pop!"
               button "ok" >>= \clicked ->
@@ -179,35 +190,28 @@ mainLoop
       -- Render
       GL.clear [GL.ColorBuffer]
 
-      let AppState
-            { snail = SnailSettings {a = aText, l = lText},
-              scaleV = scaleVT,
-              translateV = translateVT,
-              rotateV = rotateVT,
-              rotDeg = rotDegT
-            } = appState
+      v3s@[scV, transV] <- mapM v3RefTextToVec3 [scaleVT, translateVT]
 
-      vectors@[scV, transV, rotV] <- mapM vector3StoVec3 [scaleVT, translateVT, rotateVT]
-
-      debugInfo 1 $ "Vectors: " ++ show vectors ++ "\n"
-      av <- textToFloatDef 1 <$> readIORef aText
-      lv <- textToFloatDef 1 <$> readIORef lText
-      rotD <- textToFloatDef 0 <$> readIORef rotDegT
-      let transMat = transformMatrix scV transV rotV rotD
+      Quaternion rotDeg trVec <- fromMaybe defaultRotation <$> quatRefTextToquat rotateQT
+      debugInfo 1 $ "Vectors: " ++ show v3s ++ "\n"
+      av <- textToFloatDef 1 <$> readIORef aa
+      lv <- textToFloatDef 1 <$> readIORef ll
+      let transMat = transformMatrix (fromMaybe defaultScaleV scV) (fromMaybe defaultTranslateV transV) (Quaternion (toRadians rotDeg) trVec)
       debugInfo 2 $ "Matrix initialized!" ++ show transMat
 
       oldViewPort <- get viewport
       debugInfo 10 $ "Old view port: " ++ show oldViewPort
 
-      -- viewport $= (Position 0 0, canvasSz)
       bindFramebuffer Framebuffer $= frameBuf
       viewport $= (Position 0 0, canvasSz)
       debugInfo 3 $ "New view port " ++ show canvasSz
-      -- plotLines "Plot?" $ plot
+
       drawPlot snailPoints gridSize glObjects av lv transMat
       bindFramebuffer Framebuffer $= defaultFramebufferObject
       viewport $= oldViewPort
+
       debugInfo 3 "Plot ready!"
+
       withFont font do
         body
         -- showDemoWindow
@@ -217,9 +221,15 @@ mainLoop
 
       render
       debugInfo 1 "NextFrame rendered"
+
       ImguiGL.openGL3RenderDrawData =<< getDrawData
       debugInfo 2 "new frame rendered!!!"
+
       GLFW.swapBuffers win
 
       mainLoop win font appState glObjects snailPoints gridSize canvasSz winSize
     debugInfo 1 "Closing GLFW window..."
+
+-- setDefaults :: AppState -> IO ()
+-- setDefaults AppState
+--   {snail=SnailSettings {GUI.a=a,GUI.l=l}, scaleV=scaleV, translateV=translateV, rotate} =
