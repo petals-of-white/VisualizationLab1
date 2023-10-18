@@ -139,6 +139,10 @@ drawPlot
     GL.clear [ColorBuffer]
     debugInfo 10 $ show (snailSize, gridSize, graphShader, gridShader, gridVAO, gridVBO, graphVAO, graphVBO)
     debugInfo 10 "Drawing grid..."
+
+    realMatrix <- newMatrix RowMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
+
+
     -- DRAW GRID
     bindVertexArrayObject $= Just gridVAO
     bindBuffer ArrayBuffer $= Just gridVBO
@@ -150,6 +154,10 @@ drawPlot
           let sizeInBytes = fromIntegral $ sizeOf (1.0 :: Float) * size
            in bufferData ArrayBuffer $= (sizeInBytes, arr, DynamicDraw)
       )
+
+    
+    gridTransMatLoc <- get $ uniformLocation gridShader transMatUniName
+    uniform gridTransMatLoc $= realMatrix
     drawArrays Lines 0 (fromIntegral gridSize * 4)
 
     debugInfo 5 "grid drawn!"
@@ -164,10 +172,10 @@ drawPlot
     currentProgram $= Just graphShader
 
     -- upload transofrm matrix
-    transMatLoc <- get $ uniformLocation graphShader transMatUniName
-    realMatrix <- newMatrix ColumnMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
+    plotTransMatLoc <- get $ uniformLocation graphShader transMatUniName
+    
 
-    uniform transMatLoc $= realMatrix
+    uniform plotTransMatLoc $= realMatrix
 
     debugInfo 5 "Uniform uploaded"
 
