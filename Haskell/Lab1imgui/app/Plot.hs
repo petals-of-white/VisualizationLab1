@@ -1,6 +1,5 @@
 module Plot where
 
-import Data.Tuple (swap)
 import Linear as Lin
 import Numeric.Natural (Natural)
 

@@ -3,10 +3,9 @@
 
 module Main (main) where
 
--- import Graphics.GL
-
 import Control.Exception (bracket)
 import Control.Exception.Base (bracket_)
+import Control.Monad (when)
 import Control.Monad.IO.Class
 import Control.Monad.Managed
 import DearImGui (createContext)
@@ -21,20 +20,18 @@ import Graphics.Rendering.OpenGL.GL as GL
 import qualified Graphics.UI.GLFW as GLFW
 import Numeric.Natural (Natural)
 import Paths_Lab1imgui
-import Plot
-import Control.Monad (when)
 
 gridVertShader :: IO FilePath
-gridVertShader = getDataFileName "shaders/grid.vert"
+gridVertShader = getDataFileName "shaders/Grid.vert"
 
 gridFragShader :: IO FilePath
-gridFragShader = getDataFileName "shaders/grid.frag"
+gridFragShader = getDataFileName "shaders/Grid.frag"
 
-graphVertShader :: IO FilePath
-graphVertShader = getDataFileName "shaders/graph.vert"
+plotVertShader :: IO FilePath
+plotVertShader = getDataFileName "shaders/Plot.vert"
 
-graphFragShader :: IO FilePath
-graphFragShader = getDataFileName "shaders/graph.frag"
+plotFragShader :: IO FilePath
+plotFragShader = getDataFileName "shaders/Plot.frag"
 
 main :: IO ()
 main = do
@@ -67,8 +64,8 @@ main = do
         liftIO $ do
           when shouldDebug debugGL
           lineWidth $= 3
-          [gridVertShaderPath, gridFragShaderPath, graphVertShaderPath, graphFragShaderPath] <-
-            sequence [gridVertShader, gridFragShader, graphVertShader, graphFragShader]
+          [gridVertShaderPath, gridFragShaderPath, plotVertShaderPath, plotFragShaderPath] <-
+            sequence [gridVertShader, gridFragShader, plotVertShader, plotFragShader]
 
           let vad = VertexArrayDescriptor 2 Float (fromIntegral $ sizeOf (0.0 :: Float) * 2) nullPtr
 
@@ -76,18 +73,18 @@ main = do
           debugInfo 1 "Grid shader created"
           gridVAO <- genObjectName
           bindVertexArrayObject $= Just gridVAO
-          gridVBO <- createVBO $ replicate (fromIntegral gridSize * 4) 0 --concatMap (\Plot.Point {x = xx, y = yy} -> [xx, yy]) (plotGrid gridSize)
+          gridVBO <- createVBO $ replicate (fromIntegral gridSize * 4) 0
           debugInfo 1 "Grid VBO created"
           linkAttrib gridVBO (AttribLocation 0) ToFloat vad
 
           debugInfo 1 "Grid stuff created"
 
-          graphShader <- prepareProgram graphVertShaderPath graphFragShaderPath
-          graphVAO <- genObjectName
-          bindVertexArrayObject $= Just graphVAO
+          plotShader <- prepareProgram plotVertShaderPath plotFragShaderPath
+          plotVAO <- genObjectName
+          bindVertexArrayObject $= Just plotVAO
 
-          graphVBO <- createVBO $ replicate (fromIntegral snailPoints) 0
-          linkAttrib graphVBO (AttribLocation 0) ToFloat vad
+          plotVBO <- createVBO $ replicate (fromIntegral snailPoints) 0
+          linkAttrib plotVBO (AttribLocation 0) ToFloat vad
 
           debugInfo 1 "Grid stuff created"
 
@@ -102,7 +99,6 @@ main = do
           textureFilter Texture2D $= ((Linear', Nothing), Linear')
           framebufferTexture2D Framebuffer (ColorAttachment 0) Texture2D renderedTexture 0
 
-
           status <- framebufferStatus Framebuffer
           case status of
             Complete -> do
@@ -113,9 +109,9 @@ main = do
                       { gridVAO = gridVAO,
                         gridVBO = gridVBO,
                         gridShader = gridShader,
-                        graphVAO = graphVAO,
-                        graphVBO = graphVBO,
-                        graphShader = graphShader,
+                        plotVAO = plotVAO,
+                        plotVBO = plotVBO,
+                        plotShader = plotShader,
                         targetTexture = renderedTexture,
                         frameBuffer = frameBuf
                       }
@@ -123,15 +119,14 @@ main = do
               initState <- defaultState
               clearColor $= Color4 0.8 0.8 0.8 1
               mainLoop win font initState glObjects snailPoints gridSize canvasSize glfwWindowSize
-
             _ -> error "Framebuffer error"
 
           -- delete everything
           deleteObjectName frameBuf
           deleteObjectName renderedTexture
-          deleteObjectNames [gridVAO, graphVAO]
-          deleteObjectNames [gridVBO, graphVBO]
-          deleteObjectNames [graphShader, gridShader]
+          deleteObjectNames [gridVAO, plotVAO]
+          deleteObjectNames [gridVBO, plotVBO]
+          deleteObjectNames [plotShader, gridShader]
       Nothing -> do
         error "GLFW createWindow failed"
 

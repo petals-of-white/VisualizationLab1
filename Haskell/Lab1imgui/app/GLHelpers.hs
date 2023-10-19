@@ -23,7 +23,7 @@ import Graphics.Rendering.OpenGL as GL
     HasSetter (($=)),
     IntegerHandling,
     Matrix (newMatrix),
-    MatrixOrder (ColumnMajor, RowMajor),
+    MatrixOrder (RowMajor),
     ObjectName (deleteObjectNames),
     PrimitiveMode (Lines, LineStrip),
     Program,
@@ -60,9 +60,9 @@ data GLObjects = GLObjects
   { gridVAO :: VertexArrayObject,
     gridVBO :: BufferObject,
     gridShader :: Program,
-    graphVAO :: VertexArrayObject,
-    graphVBO :: BufferObject,
-    graphShader :: Program,
+    plotVAO :: VertexArrayObject,
+    plotVBO :: BufferObject,
+    plotShader :: Program,
     targetTexture :: TextureObject,
     frameBuffer :: FramebufferObject
   }
@@ -125,19 +125,19 @@ drawPlot
   snailSize
   gridSize
   GLObjects
-    { graphShader = graphShader,
+    { plotShader = plotShader,
       gridShader = gridShader,
       gridVAO = gridVAO,
       gridVBO = gridVBO,
-      graphVAO = graphVAO,
-      graphVBO = graphVBO
+      plotVAO = plotVAO,
+      plotVBO = plotVBO
     }
   a
   l
   transMatrix = do
 
     GL.clear [ColorBuffer]
-    debugInfo 10 $ show (snailSize, gridSize, graphShader, gridShader, gridVAO, gridVBO, graphVAO, graphVBO)
+    debugInfo 10 $ show (snailSize, gridSize, plotShader, gridShader, gridVAO, gridVBO, plotVAO, plotVBO)
     debugInfo 10 "Drawing grid..."
 
     realMatrix <- newMatrix RowMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
@@ -167,12 +167,12 @@ drawPlot
     -- debugInfo 15 $ "Snail is : " ++ show snail
 
     -- DRAW PLOT --
-    bindVertexArrayObject $= Just graphVAO
-    bindBuffer ArrayBuffer $= Just graphVBO
-    currentProgram $= Just graphShader
+    bindVertexArrayObject $= Just plotVAO
+    bindBuffer ArrayBuffer $= Just plotVBO
+    currentProgram $= Just plotShader
 
     -- upload transofrm matrix
-    plotTransMatLoc <- get $ uniformLocation graphShader transMatUniName
+    plotTransMatLoc <- get $ uniformLocation plotShader transMatUniName
     
 
     uniform plotTransMatLoc $= realMatrix
