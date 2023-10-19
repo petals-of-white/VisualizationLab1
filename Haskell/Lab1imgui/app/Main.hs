@@ -1,12 +1,8 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Main (main) where
 
 import Control.Exception (bracket)
 import Control.Exception.Base (bracket_)
 import Control.Monad (when)
-import Control.Monad.IO.Class
 import Control.Monad.Managed
 import DearImGui (createContext)
 import qualified DearImGui.GLFW as ImguiGLFW
@@ -19,7 +15,7 @@ import GUI
 import Graphics.Rendering.OpenGL.GL as GL
 import qualified Graphics.UI.GLFW as GLFW
 import Numeric.Natural (Natural)
-import Paths_Lab1imgui
+import Paths_Lab1imgui (getDataFileName)
 
 gridVertShader :: IO FilePath
 gridVertShader = getDataFileName "shaders/Grid.vert"
@@ -39,7 +35,7 @@ main = do
       snailPoints = 5000 :: Natural
       gridSize = 11 :: Natural
       -- window and viewport size
-      canvasSize@(Size canvasW canvasH) = Size 600 600
+      canvasSize@(Size canvasW canvasH) = Size 700 700
       shouldDebug = False
 
   initGLFW

@@ -4,14 +4,15 @@
 module GUI where
 
 import Control.Exception (bracket)
-import Control.Monad (replicateM, unless, when)
+import Control.Monad (unless, when, zipWithM_)
 import Control.Monad.Managed hiding (with)
+import Data.Foldable (Foldable (toList))
 import Data.IORef
 import Data.Maybe (fromMaybe)
-import Data.Text (Text, unpack)
+import Data.Text (Text, pack, unpack)
 import DearImGui as Imgui hiding (ImVec3 (..), ImVec4 (x, y))
 import DearImGui.FontAtlas as Atlas
-import DearImGui.GLFW as ImguiGLFW
+import DearImGui.GLFW as ImguiGLFW (glfwNewFrame)
 import qualified DearImGui.OpenGL3 as ImguiGL
 import Foreign (WordPtr (WordPtr), castPtr, wordPtrToPtr)
 import Foreign.Marshal (with)
@@ -20,8 +21,16 @@ import GLHelpers
 import Graphics.Rendering.OpenGL as GL
 import Graphics.UI.GLFW as GLFW
 import Linear (Quaternion (Quaternion), V3 (..))
-import Plot (defaultRotation, defaultScaleV, defaultSnailOptions, defaultTranslateV, transformMatrix, toRadians)
+import Plot
 import Text.Read (readMaybe)
+
+type CanvasSize = Size
+
+type ImguiWinSize = Size
+
+type V3RefText = V3 (IORef Text)
+
+type QuaternionRefText = Quaternion (IORef Text)
 
 makeWindow :: Size -> Managed (Maybe Window)
 makeWindow (Size width height) =
@@ -40,7 +49,7 @@ addGlobalStyles :: IO Font
 addGlobalStyles = do
   styleColorsClassic
   pushStyleVar ImGuiStyleVar_WindowPadding (return $ Imgui.ImVec2 {Imgui.x = 40, Imgui.y = 40} :: IO Imgui.ImVec2)
-  let fontSrc = FromTTF "C:\\Windows\\Fonts\\arial.ttf" 22 Nothing Latin
+  let fontSrc = FromTTF "C:\\Windows\\Fonts\\arial.ttf" 26 Nothing Latin
   fonts <- rebuild [fontSrc, Atlas.DefaultFont]
   return $ head fonts
 
@@ -58,13 +67,6 @@ textToFloat = readMaybe . unpack
 textToFloatDef :: Float -> Text -> Float
 textToFloatDef def = fromMaybe def . textToFloat
 
--- textRefToFloat :: IORef Text -> IO
-data SnailSettings = SnailSettings {a :: IORef Text, l :: IORef Text} deriving (Eq)
-
-type V3RefText = V3 (IORef Text)
-
-type QuaternionRefText = Quaternion (IORef Text)
-
 v3RefTextToVec3 :: V3RefText -> IO (Maybe (V3 Float))
 v3RefTextToVec3 (V3 xref yref zref) = do
   texts <- mapM readIORef [xref, yref, zref]
@@ -81,45 +83,39 @@ quatRefTextToquat (Quaternion deg (V3 xref yref zref)) = do
     [xx, yy, zz, degg] <- values
     return $ Quaternion degg (V3 xx yy zz)
 
--- return $ Quaternion deg (V3 (textToFloatDef 1 xv) (textToFloatDef 1 yv) (textToFloatDef 1 zv))
+valueInput :: Text -> IORef Text -> IO Bool
+valueInput label ref = withItemWidth 200 $ inputText label ref 6
 
-data AppState = AppState
-  { snail :: SnailSettings,
-    scaleV :: V3RefText,
-    translateV :: V3RefText,
-    rotateQ :: QuaternionRefText
-  }
-  deriving (Eq)
-
-valueInput :: (MonadIO m) => Text -> IORef Text -> m Bool
-valueInput label ref = inputText label ref 6
-
-defaultState :: IO AppState
+defaultState :: IO (Options (IORef Text))
 defaultState = do
-  let a = defaultSnailOptions
-  [aa, ll, scaleX, scaleY, scaleZ] <- replicateM 5 $ newIORef "1"
-  [trX, trY, trZ, rotX, rotY, rotZ, rotD] <- replicateM 7 $ newIORef "0"
+  let Options
+        { snailOptions = SnailOptions aa ll,
+          scaleVector = scaleVec,
+          translateVector = translateVec,
+          rotation = rotat
+        } = fmap (pack . show) defaultOptions
+
+  scaleV <- mapM newIORef scaleVec
+  translateV <- mapM newIORef translateVec
+  rot <- mapM newIORef rotat
+  [aRef, lRef] <- mapM newIORef [aa, ll]
   pure
-    AppState
-      { snail = SnailSettings {GUI.a = aa, GUI.l = ll},
-        scaleV = V3 scaleX scaleY scaleZ,
-        translateV = V3 trX trY trZ,
-        rotateQ = Quaternion rotD (V3 rotX rotY rotZ)
+    Options
+      { snailOptions = SnailOptions {a = aRef, l = lRef},
+        scaleVector = scaleV,
+        translateVector = translateV,
+        rotation = rot
       }
 
-type CanvasSize = Size
-
-type ImguiWinSize = Size
-
-mainLoop :: Window -> Font -> AppState -> GLObjects -> Natural -> Natural -> CanvasSize -> ImguiWinSize -> IO ()
+mainLoop :: Window -> Font -> Options (IORef Text) -> GLObjects -> Natural -> Natural -> CanvasSize -> ImguiWinSize -> IO ()
 mainLoop
   win
   font
-  appState@AppState
-    { snail = SnailSettings {GUI.a = aa, GUI.l = ll},
-      rotateQ = rotateQT@(Quaternion rotDT rotVT@(V3 rx ry rz)),
-      translateV = translateVT@(V3 tx ty tz),
-      scaleV = scaleVT@(V3 sx sy sz)
+  appState@Options
+    { snailOptions = SnailOptions {a = aa, l = ll},
+      rotation = rotateQT@(Quaternion rotDT (V3 rx ry rz)),
+      translateVector = translateVT@(V3 tx ty tz),
+      scaleVector = scaleVT@(V3 sx sy sz)
     }
   glObjects@GLObjects {targetTexture = TextureObject texId, frameBuffer = frameBuf}
   snailPoints
@@ -150,27 +146,30 @@ mainLoop
 
       -- Build the GUI
       let body = withWindowOpen "Pascal Snail" do
-            -- Add a text widget
-            text "Pascal Snail"
-            _ <- valueInput "a" aa
-            _ <- valueInput "l" ll
+            withGroup $ do
+              -- Add a text widget
+              text "Pascal Snail"
+              _ <- valueInput "a" aa
+              _ <- valueInput "l" ll
 
-            text "scale vector"
-            _ <- valueInput "sx" sx
-            _ <- valueInput "sy" sy
-            _ <- valueInput "sz" sz
+              text "scale vector"
+              _ <- valueInput "sx" sx
+              _ <- valueInput "sy" sy
+              _ <- valueInput "sz" sz
 
-            text "translation vector"
-            _ <- valueInput "tx" tx
-            _ <- valueInput "ty" ty
-            _ <- valueInput "tz" tz
+              text "translation vector"
+              _ <- valueInput "tx" tx
+              _ <- valueInput "ty" ty
+              _ <- valueInput "tz" tz
 
-            text "rotation vector"
-            _ <- valueInput "rx" rx
-            _ <- valueInput "ry" ry
-            _ <- valueInput "rz" rz
-            _ <- valueInput "Deg" rotDT
+              text "rotation vector"
+              _ <- valueInput "rx" rx
+              _ <- valueInput "ry" ry
+              _ <- valueInput "rz" rz
+              _ <- valueInput "Deg" rotDT
+              return ()
 
+            sameLine
             with siz \szPtr ->
               with uv0 \uv0Ptr ->
                 with uv1 \uv1Ptr ->
@@ -180,7 +179,7 @@ mainLoop
 
             -- Add a button widget, and call 'putStrLn' when it's clicked
             reset <- button "Reset"
-            -- when reset $ setDefaults appState
+            when reset $ setDefaults appState
             itemContextPopup do
               text "pop!"
               button "ok" >>= \clicked ->
@@ -194,30 +193,27 @@ mainLoop
 
       Quaternion rotDeg trVec <- fromMaybe defaultRotation <$> quatRefTextToquat rotateQT
       debugInfo 1 $ "Vectors: " ++ show v3s ++ "\n"
-      av <- textToFloatDef 1 <$> readIORef aa
-      lv <- textToFloatDef 1 <$> readIORef ll
+
+      snailT <- mapM readIORef [aa, ll]
+      let sus = maybe defaultSnailOptions (\[aS, lS] -> SnailOptions aS lS) (mapM ((readMaybe :: String -> Maybe Float) <$> unpack) snailT)
+
+      -- av <- textToFloatDef 1 <$> readIORef aa
+      -- lv <- textToFloatDef 1 <$> readIORef ll
       let transMat = transformMatrix (fromMaybe defaultScaleV scV) (fromMaybe defaultTranslateV transV) (Quaternion (toRadians rotDeg) trVec)
       debugInfo 2 $ "Matrix initialized!" ++ show transMat
 
       oldViewPort <- get viewport
-      debugInfo 10 $ "Old view port: " ++ show oldViewPort
 
       bindFramebuffer Framebuffer $= frameBuf
       viewport $= (Position 0 0, canvasSz)
-      debugInfo 3 $ "New view port " ++ show canvasSz
 
-      drawPlot snailPoints gridSize glObjects av lv transMat
+      drawPlot snailPoints gridSize glObjects sus transMat
       bindFramebuffer Framebuffer $= defaultFramebufferObject
       viewport $= oldViewPort
 
       debugInfo 3 "Plot ready!"
 
-      withFont font do
-        body
-        -- showDemoWindow
-        -- showAboutWindow
-        -- showUserGuide
-        showMetricsWindow
+      withFont font body
 
       render
       debugInfo 1 "NextFrame rendered"
@@ -230,6 +226,28 @@ mainLoop
       mainLoop win font appState glObjects snailPoints gridSize canvasSz winSize
     debugInfo 1 "Closing GLFW window..."
 
--- setDefaults :: AppState -> IO ()
--- setDefaults AppState
---   {snail=SnailSettings {GUI.a=a,GUI.l=l}, scaleV=scaleV, translateV=translateV, rotate} =
+    where Options { snailOptions = SnailOptions adef ldef,
+                    scaleVector = scaleDef,
+                    translateVector = translateDef,
+                    rotation = rotDef
+          } = defaultOptions
+
+setDefaults :: Options (IORef Text) -> IO ()
+setDefaults
+  Options
+    { snailOptions = SnailOptions aa ll,
+      scaleVector = scaleVec,
+      translateVector = transVec,
+      rotation = rot
+    } = do
+    let Options
+          { snailOptions = SnailOptions adef ldef,
+            scaleVector = scaleDef,
+            translateVector = translateDef,
+            rotation = rotDef
+          } = fmap (pack . show) defaultOptions
+
+    zipWithM_ writeIORef [aa, ll] [adef, ldef]
+    zipWithM_ writeIORef (toList scaleVec) (toList scaleDef)
+    zipWithM_ writeIORef (toList transVec) (toList translateDef)
+    zipWithM_ writeIORef (toList rot) (toList rotDef)

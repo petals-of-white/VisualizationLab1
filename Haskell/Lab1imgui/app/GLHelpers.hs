@@ -3,56 +3,7 @@ module GLHelpers where
 import Data.Foldable (Foldable (toList))
 import Foreign (Storable (sizeOf), withArrayLen)
 import Graphics.Rendering.OpenGL as GL
-  ( AttribLocation,
-    BufferObject,
-    BufferTarget (ArrayBuffer),
-    BufferUsage (StaticDraw, DynamicDraw),
-    Capability (Enabled),
-    ClearBuffer (ColorBuffer),
-    DebugMessage (DebugMessage),
-    DebugMessageID (DebugMessageID),
-    DebugSeverity (DebugSeverityNotification),
-    DebugSource (DebugSourceApplication),
-    DebugType (DebugTypeOther),
-    FramebufferObject,
-    GLfloat,
-    GLmatrix,
-    GLuint,
-    GeneratableObjectName (genObjectName),
-    HasGetter (get),
-    HasSetter (($=)),
-    IntegerHandling,
-    Matrix (newMatrix),
-    MatrixOrder (RowMajor),
-    ObjectName (deleteObjectNames),
-    PrimitiveMode (Lines, LineStrip),
-    Program,
-    Shader,
-    ShaderType (FragmentShader, VertexShader),
-    TextureObject,
-    Uniform (uniform),
-    VertexArrayDescriptor,
-    VertexArrayObject,
-    attachShader,
-    bindBuffer,
-    bindVertexArrayObject,
-    bufferData,
-    clear,
-    compileShader,
-    createProgram,
-    createShader,
-    currentProgram,
-    debugMessageInsert,
-    drawArrays,
-    linkProgram,
-    packUtf8,
-    shaderSourceBS,
-    uniformLocation,
-    validateProgram,
-    vertexAttribArray,
-    vertexAttribPointer,
-  )
-import Linear as Lin
+import Linear (M44)
 import Numeric.Natural (Natural)
 import Plot
 
@@ -102,7 +53,7 @@ linkAttrib vbo location intHandling vaDescriptor = do
   bindBuffer ArrayBuffer $= Nothing
 
 normalizedToGL :: Plot GLfloat -> Plot GLfloat
-normalizedToGL plot = (\Point {x = xx, y = yy} -> Point {x = xx / maxX, y = yy / maxY}) <$> plot
+normalizedToGL plot = (\Plot.Point {x = xx, y = yy} -> Plot.Point {x = xx / maxX, y = yy / maxY}) <$> plot
   where
     maxX = maximum (abs . x <$> plot)
     maxY = maximum (abs . y <$> plot)
@@ -120,7 +71,7 @@ createVBO vertices = do
   bindBuffer ArrayBuffer $= Nothing
   return vbo
 
-drawPlot :: Natural -> Natural -> GLObjects -> GLfloat -> GLfloat -> M44 GLfloat -> IO ()
+drawPlot :: Natural -> Natural -> GLObjects -> SnailOptions Float -> M44 GLfloat -> IO ()
 drawPlot
   snailSize
   gridSize
@@ -132,18 +83,14 @@ drawPlot
       plotVAO = plotVAO,
       plotVBO = plotVBO
     }
-  a
-  l
+  (SnailOptions a l)
   transMatrix = do
-
     GL.clear [ColorBuffer]
     debugInfo 10 $ show (snailSize, gridSize, plotShader, gridShader, gridVAO, gridVBO, plotVAO, plotVBO)
-    debugInfo 10 "Drawing grid..."
-
     realMatrix <- newMatrix RowMajor $ concatMap toList (toList transMatrix) :: IO (GLmatrix Float)
 
-
     -- DRAW GRID
+    debugInfo 10 "Drawing grid..."
     bindVertexArrayObject $= Just gridVAO
     bindBuffer ArrayBuffer $= Just gridVBO
     currentProgram $= Just gridShader
@@ -155,16 +102,11 @@ drawPlot
            in bufferData ArrayBuffer $= (sizeInBytes, arr, DynamicDraw)
       )
 
-    
     gridTransMatLoc <- get $ uniformLocation gridShader transMatUniName
     uniform gridTransMatLoc $= realMatrix
     drawArrays Lines 0 (fromIntegral gridSize * 4)
-
     debugInfo 5 "grid drawn!"
 
-    debugInfo 5 "drawing plot..."
-
-    -- debugInfo 15 $ "Snail is : " ++ show snail
 
     -- DRAW PLOT --
     bindVertexArrayObject $= Just plotVAO
@@ -173,10 +115,7 @@ drawPlot
 
     -- upload transofrm matrix
     plotTransMatLoc <- get $ uniformLocation plotShader transMatUniName
-    
-
     uniform plotTransMatLoc $= realMatrix
-
     debugInfo 5 "Uniform uploaded"
 
     withArrayLen
@@ -186,8 +125,9 @@ drawPlot
            in bufferData ArrayBuffer $= (sizeInBytes, arr, DynamicDraw)
       )
     drawArrays LineStrip 0 (fromIntegral snailSize)
-
     debugInfo 6 "plot drawn"
+
+
     bindBuffer ArrayBuffer $= Nothing
     bindVertexArrayObject $= Nothing
     where

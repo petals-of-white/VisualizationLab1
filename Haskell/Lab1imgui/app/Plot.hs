@@ -5,10 +5,24 @@ import Numeric.Natural (Natural)
 
 data Point a = Point {x :: a, y :: a} deriving (Show)
 
-data SnailOptions t = SnailOptions {a :: t, l :: t}
+data SnailOptions t = SnailOptions {a :: t, l :: t} deriving Eq
+
+instance Functor SnailOptions where
+  fmap f SnailOptions {a = aa, l = ll} = SnailOptions {a = f aa, l = f ll}
+
+data Options t = Options
+  { snailOptions :: SnailOptions t,
+    scaleVector :: V3 t,
+    translateVector :: V3 t,
+    rotation :: Quaternion t
+  } deriving Eq
+
+instance Functor Options where
+  fmap f (Options snail scaleV translateV rot) =
+    Options (fmap f snail) (fmap f scaleV) (fmap f translateV) (fmap f rot)
 
 defaultSnailOptions :: (Floating a) => SnailOptions a
-defaultSnailOptions = SnailOptions {a = 1, l = 1}
+defaultSnailOptions = SnailOptions {a = 2, l = 1}
 
 defaultScaleV :: (Floating a) => V3 a
 defaultScaleV = V3 1 1 1
@@ -18,6 +32,9 @@ defaultRotation = Quaternion 0 (V3 0 0 0)
 
 defaultTranslateV :: (Floating a) => V3 a
 defaultTranslateV = V3 0 0 0
+
+defaultOptions :: (Floating a) => Options a
+defaultOptions = Options defaultSnailOptions defaultScaleV defaultTranslateV defaultRotation
 
 type Plot a = [Point a]
 
