@@ -192,6 +192,7 @@ mainLoop
       v3s@[scV, transV] <- mapM v3RefTextToVec3 [scaleVT, translateVT]
 
       Quaternion rotDeg trVec <- fromMaybe defaultRotation <$> quatRefTextToquat rotateQT
+      debugInfo 1 $ "Quaternion: degrees:" ++ show rotDeg ++ " vec3: " ++ show trVec
       debugInfo 1 $ "Vectors: " ++ show v3s ++ "\n"
 
       snailT <- mapM readIORef [aa, ll]

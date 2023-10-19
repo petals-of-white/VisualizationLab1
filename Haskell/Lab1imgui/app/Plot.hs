@@ -72,7 +72,7 @@ toRadians = (*) (pi / 180)
 
 transformMatrix :: (Floating a) => V3 a -> V3 a -> Quaternion a -> M44 a
 transformMatrix scaleVec translateVec rotateQuaternion =
-  scaleM !*! translateThenRotate
+  scaleM !*! translateRotate
   where
     scaleM = scaled $ point scaleVec
-    translateThenRotate = mkTransformation rotateQuaternion translateVec
+    translateRotate = mkTransformation rotateQuaternion translateVec
